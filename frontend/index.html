@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Online Chess Matchmaking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="stylesheet" href="libs/chessboard-1.0.0.min.css" />
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f0f2f5;
+      background-image: url('/static/bgg.jpg');
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-attachment: fixed;
+      text-align: center;
+      padding-top: 100px;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    body.dark {
+      background-color: #121212;
+      background-image: none;
+      color: #ffffff;
+    }
+header {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  z-index: 999;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.header-content {
+  position: center;
+  max-width: 1000px;
+  margin: auto;
+  justify-content: space-between;
+  padding: 15px 20px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 24px;
+  text-align: center;
+}
+.header-btn {
+  font-size: 16px;
+  padding: 8px 16px;
+  background-color: transparent;
+  color: rgb(3, 121, 238);
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.header-btn:hover {
+  background-color: #afce62;
+  transform: scale(1.05);
+}
+
+.header-btn:active {
+  transform: scale(0.95);
+}
+
+.top-buttons {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 10px;
+}
+
+#muteBtn, #darkModeBtn {
+  font-size: 16px;
+  padding: 8px 16px;
+  background-color: transparent;
+  color: rgb(3, 121, 238);
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+#muteBtn:hover, #darkModeBtn:hover {
+  background-color: #afce62;
+}
+
+    #modeSelect, #difficultySelection {
+     font-size: 16px;
+     margin: 5px;
+     padding: 8px 16px;
+     color: white;
+     border: none;
+     cursor: pointer;
+     border-radius: 5px;
+    }
+
+    .difficulty-btn {
+      font-size: 16px;
+      margin: 5px;
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    .difficulty-btn:hover {
+      background-color: #45a049;
+    }
+
+    #board {
+      width: min(96vw, 480px);
+      margin: 10px auto;
+      position: relative;
+    }
+
+    #status, #botTime, #countdown {
+      margin-top: 10px;
+      font-size: 16px;
+      color: white;
+      text-shadow: 1px 1px 2px black;
+    }
+
+    #progressBarContainer {
+      width: 90%;
+      max-width: 500px;
+      height: 16px;
+      background-color: #eee;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 10px auto;
+      display: none;
+    }
+
+    #progressBar {
+      height: 100%;
+      background-color: #0d6efd;
+      width: 100%;
+      transition: none;
+    }
+
+    .highlighted {
+      background: radial-gradient(circle, rgba(255,99,71,0.6) 40%, transparent 40%);
+    }
+
+    .move-dot {
+      width: 14px;
+      height: 14px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .square-55d63 {
+      position: relative;
+    }
+
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 20px;
+      }
+
+      .difficulty-btn, #muteBtn, #darkModeBtn {
+        font-size: 14px;
+        padding: 6px 12px;
+      }
+
+      #status, #botTime, #countdown {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <h1>♟️ Online Chess</h1>
+      <div id="matchup" style="font-size: 16px; margin-top: 5px;"></div>
+     
+      <div class="top-buttons">
+         <button id="newGameBtn" class="header-btn" style="display: none;">🔁 New Game</button>
+
+        <button id="darkModeBtn">🌙</button>
+        <button id="muteBtn">🔊</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="modeSelect">
+    <button onclick="startBotGame()">Play vs Bot</button>
+    <button onclick="startOnlineGame()">Find Online Match</button>
+  </div>
+
+  <div id="difficultySelection" style="display:none;">
+    <h3 style="color:white; text-shadow:1px 1px 2px black;">Select Bot Difficulty:</h3>
+    <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+    <button class="difficulty-btn" data-difficulty="medium">Medium</button>
+    <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+    <button class="difficulty-btn" data-difficulty="expert">Expert</button>
+  </div>
+
+  <div id="board"></div>
+  <div id="status">Choose a game mode above</div>
+
+  <div id="botTime"></div>
+  <div id="progressBarContainer"><div id="progressBar"></div></div>
+  <div id="countdown"></div>
+
+  <!-- External JS Files -->
+  <script src="libs/chess.min.js"></script>
+  <script src="libs/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script src="script.js"></script>
+
+  <!-- Sound Assets -->
+  <audio id="moveSound" src="/static/sounds/move.mp3" preload="auto"></audio>
+  <audio id="captureSound" src="/static/sounds/capture.mp3" preload="auto"></audio>
+  <audio id="checkSound" src="/static/sounds/check.mp3" preload="auto"></audio>
+  <audio id="checkmateSound" src="/static/sounds/checkmate.mp3" preload="auto"></audio>
+  <audio id="drawSound" src="/static/sounds/draw.mp3" preload="auto"></audio>
+  <audio id="invalidSound" src="/static/sounds/invalid.mp3" preload="auto"></audio>
+  <audio id="startSound" src="/static/sounds/start.mp3" preload="auto"></audio>
+  <audio id="matchFoundSound" src="/static/sounds/match_found.mp3" preload="auto"></audio>
+  <audio id="disconnectSound" src="/static/sounds/disconnect.mp3" preload="auto"></audio>
+  <audio id="clickSound" src="/static/sounds/click.mp3" preload="auto"></audio>
+  <audio id="winSound" src="/static/sounds/win.mp3" preload="auto"></audio>
+
+  <!-- Toggle Logic Script -->
+  <script>
+    let isMuted = false;
+
+    document.getElementById("muteBtn").addEventListener("click", function () {
+      isMuted = !isMuted;
+      const btn = document.getElementById("muteBtn");
+      btn.textContent = isMuted ? "🔇" : "🔊";
+
+      // Mute/unmute all audio
+      document.querySelectorAll("audio").forEach(audio => {
+        audio.muted = isMuted;
+      });
+    });
+
+    document.getElementById("darkModeBtn").addEventListener("click", function () {
+      document.body.classList.toggle("dark");
+      const btn = document.getElementById("darkModeBtn");
+      btn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+    });
+
+    document.getElementById('newGameBtn').addEventListener('click', () => {
+  if (confirm("Start a new game? Your current game will end.")) {
+    location.reload(); // Simple way to reset everything
+  }
+});
+
+  </script>
+</body>
+</html>
