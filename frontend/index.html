@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Online Chess Matchmaking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+  <link rel="stylesheet" href="libs/chessboard-1.0.0.min.css" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="libs/chess.min.js"></script>
+  <script src="libs/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: url('/static/bgg.webp') center/cover no-repeat fixed #f0f2f5;
+      text-align: center;
+      padding-top: 120px;
+      transition: background-color 0.3s, color 0.3s;
+      color: #222;
+    }
+
+    body.dark {
+      background: #121212;
+      color: #fff;
+    }
+
+    header {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      z-index: 999;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .header-content {
+      max-width: 1000px;
+      margin: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 26px;
+    }
+
+    .top-buttons button {
+      font-size: 16px;
+      margin-left: 10px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #03a9f4;
+      color: #fff;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .top-buttons button:hover {
+      background: #0288d1;
+      transform: scale(1.05);
+    }
+
+    #modeSelect,
+    #difficultySelection {
+      margin: 20px auto;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    #modeSelect button,
+    .difficulty-btn {
+      padding: 12px 25px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      border: none;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    #modeSelect button {
+      background: #4caf50;
+      color: #fff;
+    }
+
+    #modeSelect button:hover {
+      background: #45a049;
+      transform: scale(1.05);
+    }
+
+    .difficulty-btn {
+      background: #ff9800;
+      color: #fff;
+    }
+
+    .difficulty-btn:hover {
+      background: #fb8c00;
+      transform: scale(1.05);
+    }
+
+    #board {
+      width: min(96vw, 480px);
+      margin: 20px auto;
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 18px;
+      color: #fff;
+      text-shadow: 1px 1px 3px #000;
+      font-weight: bold;
+    }
+
+    .highlighted {
+      background: radial-gradient(circle, rgba(255, 99, 71, 0.6) 40%, transparent 40%);
+    }
+
+    .move-dot {
+      width: 14px;
+      height: 14px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .square-55d63 {
+      position: relative;
+    }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .overlay .modal {
+      background: #fff;
+      padding: 30px 25px;
+      border-radius: 12px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    #coin {
+      font-size: 60px;
+      margin: 20px auto;
+      animation: spin 1s infinite linear;
+    }
+
+    .toss-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .toss-btn {
+      padding: 12px 25px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .toss-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .toss-btn.white {
+      background: #f0f0f0;
+      color: #000;
+    }
+
+    .toss-btn.black {
+      background: #333;
+      color: #fff;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotateY(0deg);
+      }
+
+      50% {
+        transform: rotateY(180deg);
+      }
+
+      100% {
+        transform: rotateY(360deg);
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 20px;
+      }
+
+      #modeSelect button,
+      .difficulty-btn {
+        padding: 10px 18px;
+        font-size: 14px;
+      }
+
+      #board {
+        width: 90vw;
+      }
+
+      #status {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="header-content">
+      <h1>♟️ Online Chess</h1>
+      <div id="matchup" style="font-size:16px;"></div>
+      <div class="top-buttons">
+        <button id="newGameBtn" style="display:none;">🔁 New Game</button>
+        <button id="darkModeBtn">🌙</button>
+        <button id="muteBtn">🔊</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="modeSelect">
+    <button onclick="startBotGame()">Play vs Bot</button>
+    <button onclick="startOnlineGame()">Find Online Match</button>
+  </div>
+
+  <div id="difficultySelection" style="display:none;">
+    <h3>Select Bot Difficulty:</h3>
+    <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+    <button class="difficulty-btn" data-difficulty="medium">Medium</button>
+    <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+    <button class="difficulty-btn" data-difficulty="expert">Expert</button>
+  </div>
+
+  <div id="board"></div>
+
+  <div id="status">Choose a game mode above</div>
+
+  <div id="coinFlip" class="overlay">
+    <div class="modal">
+      <h2>🎲 Tossing Coin...</h2>
+      <div id="coin"> <img id="coinImage" src="/static/coin.png" alt="Coin Toss" width="150" style="transition: transform 1s;" /></div>
+    </div>
+  </div>
+
+  <div id="tossModal" class="overlay">
+    <div class="modal">
+      <h2>🎲 You won the toss!</h2>
+      <p>Choose your color:</p>
+      <div class="toss-buttons">
+        <button id="chooseWhite" class="toss-btn white">White ♖</button>
+        <button id="chooseBlack" class="toss-btn black">Black ♜</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- Audio -->
+  <audio id="moveSound" src="/static/sounds/move.mp3" preload="auto"></audio>
+  <audio id="captureSound" src="/static/sounds/capture.mp3" preload="auto"></audio>
+  <audio id="checkSound" src="/static/sounds/check.mp3" preload="auto"></audio>
+  <audio id="checkmateSound" src="/static/sounds/checkmate.mp3" preload="auto"></audio>
+  <audio id="drawSound" src="/static/sounds/draw.mp3" preload="auto"></audio>
+  <audio id="invalidSound" src="/static/sounds/invalid.mp3" preload="auto"></audio>
+  <audio id="startSound" src="/static/sounds/start.mp3" preload="auto"></audio>
+  <audio id="matchFoundSound" src="/static/sounds/match_found.mp3" preload="auto"></audio>
+  <audio id="disconnectSound" src="/static/sounds/disconnect.mp3" preload="auto"></audio>
+  <audio id="clickSound" src="/static/sounds/click.mp3" preload="auto"></audio>
+  <audio id="winSound" src="/static/sounds/win.mp3" preload="auto"></audio>
+
+
+<script>
+const socket = io('http://127.0.0.1:5000');
+const chess = new Chess();
+let board = null;
+
+
+let playerId = null; // start empty
+
+socket.on('set_player_id', (data) => {
+  playerId = data.player_id;
+  console.log("✅ Player ID set by backend:", playerId);
+});
+
+
+let playingBot = false;
+let botDifficulty = '';
+let isMuted = false;
+let playerName = '';
+let playerSkill = 1600;
+let waitingForOpponent = false;
+let onlineMatchStarted = false;
+let onlineTimeout = null;
+let playerColor = null;
+let isMyTurn = false;
+let currentOpponent = null;
+let roomWinner = null;
+
+// --------------------
+// Board Initialization
+// --------------------
+function initializeBoard() {
+  if (board) board.destroy();
+  chess.reset();
+  board = Chessboard('board', {
+    draggable: true,
+    position: 'start',
+    orientation: playerColor,
+    pieceTheme: '/static/img/{piece}.png',
+    onMouseoverSquare: (square, piece) => {
+      if (!piece || typeof piece !== 'string') return;
+      if (!isMyTurn || chess.game_over()) return;
+      if ((playerColor === 'white' && piece.startsWith('b')) || 
+          (playerColor === 'black' && piece.startsWith('w'))) return;
+      const moves = chess.moves({ square, verbose: true });
+      if (moves.length === 0) return;
+      highlightSquares([square, ...moves.map(m => m.to)]);
+    },
+    onMouseoutSquare: removeHighlights,
+    onDragStart: (source, piece) => {
+      if (!piece || typeof piece !== 'string') return false;
+      if (!isMyTurn || chess.game_over()) return false;
+      if ((playerColor === 'white' && piece.startsWith('b')) || 
+          (playerColor === 'black' && piece.startsWith('w'))) return false;
+      playSound('clickSound');
+      return true;
+    },
+    onDrop: (source, target) => {
+      removeHighlights();
+      const move = chess.move({ from: source, to: target, promotion: 'q' });
+      if (!move) {
+        playSound('invalidSound');
+        return 'snapback';
+      }
+      board.position(chess.fen());
+      updateStatus();
+      setTurn(false);
+      if (move.captured) playSound('captureSound');
+      else playSound('moveSound');
+
+      if (playingBot) {
+        setTimeout(makeBotMove, 500);
+      } else {
+        socket.emit('move', { player_id: playerId, move });
+      }
+    },
+    onSnapEnd: () => board.position(chess.fen())
+  });
+  playSound('startSound');
+  updateStatus();
+}
+
+// --------------------
+// Highlight & Sounds
+// --------------------
+function highlightSquares(squares) {
+  removeHighlights();
+  squares.forEach(sq => {
+    $('#board .square-' + sq).append('<div class="move-dot"></div>');
+  });
+}
+
+function removeHighlights() {
+  $('#board .move-dot').remove();
+}
+
+function playSound(id) {
+  if (!isMuted) document.getElementById(id)?.play();
+}
+
+// --------------------
+// Turn Management
+// --------------------
+function setTurn(turn) {
+  isMyTurn = turn;
+  updateStatus();
+}
+
+// --------------------
+// Update Status & Celebration
+// --------------------
+function updateStatus() {
+  let status = '';
+  if (chess.in_checkmate()) {
+    const winner = chess.turn() === 'w' ? 'Black' : 'White';
+    status = `🎉 Game over. ${winner} wins by checkmate!`;
+    celebrateWinner(winner);
+  } else if (chess.in_draw() || chess.insufficient_material()) {
+    status = 'Game over. Draw!';
+    playSound('drawSound');
+  } else {
+    status = `${chess.turn() === 'w' ? 'White' : 'Black'} to move`;
+    if (chess.in_check()) playSound('checkSound');
+  }
+  $('#status').text(status);
+}
+
+function celebrateWinner(winnerColor) {
+  playSound('checkmateSound');
+  setTimeout(() => playSound('winSound'), 1000);
+  $('#status').text(`🎉 ${winnerColor} wins!`);
+  if (typeof confetti !== 'undefined') {
+    confetti({ particleCount: 250, spread: 90, origin: { y: 0.6 } });
+  }
+  $('body').css('background-color', '#d1e7dd');
+  setTimeout(() => $('body').css('background-color', '#f0f2f5'), 1500);
+}
+
+// --------------------
+// Bot Moves
+// --------------------
+function makeBotMove() {
+  if (!botDifficulty) {
+    alert("Please select bot difficulty!");
+    return;
+  }
+  socket.emit('get_ai_move', { player_id: playerId, fen: chess.fen(), difficulty: botDifficulty });
+  socket.once('ai_move', data => {
+    if (!data.move) return;
+    const moveResult = chess.move(data.move);
+    board.position(chess.fen());
+    setTurn(true);
+    if (moveResult?.captured) playSound('captureSound');
+    else playSound('moveSound');
+    if (data.status === 'checkmate') {
+      $('#status').text("🎉 Checkmate! AI wins.");
+      playSound('checkmateSound');
+    } else if (data.status === 'draw') {
+      $('#status').text("🤝 Draw!");
+      playSound('drawSound');
+    }
+    updateStatus();
+  });
+}
+
+// --------------------
+// Bot Difficulty Buttons
+// --------------------
+$('.difficulty-btn').click(function () {
+  botDifficulty = $(this).data('difficulty');
+  if (!botDifficulty) return alert("Select a valid difficulty!");
+  $('#difficultySelection').hide();
+  $('#status').text(`🤖 Playing bot (${botDifficulty})`);
+  playSound('clickSound');
+  initializeBoard();
+  setTurn(true);
+  $('#newGameBtn').show();
+  $('.difficulty-btn').prop('disabled', true);
+
+  socket.emit('add_player', {
+    player_id: playerId,
+    name: playerName || `Player${playerId}`,
+    skill: playerSkill,
+    bot: true,
+    difficulty: botDifficulty
+  });
+});
+
+// --------------------
+// Start Game Functions
+// --------------------
+function startBotGame() {
+  $('#modeSelect').hide();
+  $('#difficultySelection').show();
+  $('#status').text("🤖 Select bot difficulty");
+  playingBot = true;
+  playerColor = 'white';
+  playSound('clickSound');
+}
+
+function startOnlineGame() {
+  $('#modeSelect').hide();
+  playingBot = false;
+  waitingForOpponent = true;
+
+  const nameInput = prompt("Enter your name:");
+  if (nameInput === null) { $('#modeSelect').show(); return; }
+  const skillInput = prompt("Enter skill rating (default 1600):", "1600");
+  if (skillInput === null) { $('#modeSelect').show(); return; }
+
+  playerName = nameInput.trim() || `Player${playerId}`;
+  playerSkill = parseInt(skillInput) || 1600;
+  $('#status').text("👤 Searching for opponent...");
+  playSound('clickSound');
+
+  socket.emit('add_player', {
+    player_id: playerId,
+    name: playerName,
+    skill: playerSkill,
+    bot: false,
+    auto_bot_after_timeout: true
+  });
+
+onlineTimeout = setTimeout(() => {
+    if (waitingForOpponent && !roomWinner && !currentOpponent) {
+        playingBot = true;
+        botDifficulty = 'medium';
+        $('#status').text("🤖 No opponent found. Auto-playing vs Bot.");
+        initializeBoard();
+        setTurn(true);
+        $('#newGameBtn').show();
+        waitingForOpponent = false;
+
+        socket.emit('add_player', {
+            player_id: playerId,
+            name: playerName,
+            skill: playerSkill,
+            bot: true,
+            difficulty: botDifficulty
+        });
+    }
+}, 60000);
+
+
+}
+
+// --------------------
+// Socket Event Handlers
+// --------------------
+socket.on('opponent_info', data => {
+    if(data.opponent === 'Bot' || playingBot) return;
+    
+    currentOpponent = data.opponent;
+    $('#matchup').text(`${playerName} vs ${data.opponent} (${data.opponent_skill})`);
+    $('#status').text("🎯 Match found! Waiting for toss...");
+    waitingForOpponent = false;
+
+    // ❌ Cancel auto-bot timeout
+    if (onlineTimeout) {
+        clearTimeout(onlineTimeout);
+        onlineTimeout = null;
+    }
+
+     
+});
+
+
+socket.on('toss_result', tossData => {
+  playSound('matchFoundSound');
+  roomWinner = tossData.winner;
+  $("#coinFlip").fadeIn(200).css('display', 'flex');
+
+  setTimeout(() => {
+    $("#coinFlip").fadeOut(200);
+    if (playerId === tossData.winner) {
+      $('#status').text("🎲 You won the toss! Choose your color.");
+      $("#tossModal").fadeIn(200).css('display', 'flex');
+      $('#chooseWhite').off('click').on('click', () => chooseColor('white'));
+      $('#chooseBlack').off('click').on('click', () => chooseColor('black'));
+    } else {
+      $('#status').text("🎲 Waiting for opponent to choose color...");
+    }
+  }, 2000);
+});
+
+socket.on('assign_color', assignData => {
+  playerColor = assignData.color;
+  setTurn(playerColor === 'white');
+  $("#tossModal").fadeOut(200);
+  initializeBoard();
+});
+
+function chooseColor(color) {
+  playerColor = color;
+  setTurn(color === 'white');
+  $("#tossModal").fadeOut(200);
+  $('#status').text(`🎲 You chose ${color}`);
+  initializeBoard();
+  socket.emit('color_choice', { player_id: playerId, color: color });
+}
+
+socket.on('opponent_move', move => {
+  const moveResult = chess.move(move);
+  if (moveResult) {
+    board.position(chess.fen());
+    setTurn(true);
+    if (moveResult.captured) playSound('captureSound');
+    else playSound('moveSound');
+    updateStatus();
+  }
+});
+
+socket.on('ai_move', data => {
+  if (!data.move) return;
+  const moveResult = chess.move(data.move);
+  board.position(chess.fen());
+  setTurn(true);
+  if (moveResult?.captured) playSound('captureSound');
+  else playSound('moveSound');
+  if (data.status === 'checkmate') $('#status').text("🎉 Checkmate! AI wins.");
+  else if (data.status === 'draw') $('#status').text("🤝 Draw!");
+  updateStatus();
+});
+
+socket.on('opponent_disconnected', () => {
+  $('#status').text("⚠️ Opponent disconnected. You can continue vs Bot.");
+  if (!roomWinner) return; // Toss complete hone ke baad hi bot start
+  playingBot = true;
+  botDifficulty = 'medium';
+  if (!chess.game_over()) setTurn(true);
+  playSound('disconnectSound');
+  socket.emit('add_player', { player_id: playerId, name: playerName, skill: playerSkill, bot: true, difficulty: botDifficulty });
+});
+
+
+socket.on('disconnect', () => {
+  $('#status').text("❌ Disconnected from server");
+  playSound('disconnectSound');
+});
+
+// --------------------
+// UI Controls
+// --------------------
+document.getElementById("muteBtn").addEventListener("click", () => {
+  isMuted = !isMuted;
+  document.getElementById("muteBtn").textContent = isMuted ? "🔇" : "🔊";
+  document.querySelectorAll("audio").forEach(audio => audio.muted = isMuted);
+});
+
+document.getElementById("darkModeBtn").addEventListener("click", () => {
+  document.body.classList.toggle("dark");
+  document.getElementById("darkModeBtn").textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+});
+
+document.getElementById('newGameBtn').addEventListener('click', () => {
+  if (confirm("Start a new game? Your current game will end.")) location.reload();
+});
+</script>
+
+</body>
+
+</html>
